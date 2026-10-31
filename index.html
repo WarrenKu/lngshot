@@ -11,11 +11,25 @@
   #float{
     position:fixed;right:16px;bottom:24px;z-index:9999;
     border:1px solid #ffffff35;background:#202020;
-    color:white;border-radius:30px;padding:12px 17px;
+    box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:4px;
+    width:124px;height:44px;padding:0 12px;overflow:hidden;white-space:nowrap;
+    color:white;border-radius:30px;
     box-shadow:0 4px 20px #0009;cursor:pointer;
     font-size:14px;
+    transition:width .48s cubic-bezier(.2,.8,.2,1),padding .48s cubic-bezier(.2,.8,.2,1),
+      border-radius .48s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease;
   }
   #float:active{transform:scale(.96)}
+  #float svg{flex:none;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  #lockshackle{transform-origin:8px 11px;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  #float.panel-open #lockshackle{transform:rotate(-35deg) translateY(-1px)}
+  #float span{display:inline-block;max-width:72px;overflow:hidden;text-overflow:clip;
+    transition:max-width .4s ease,opacity .28s ease,transform .4s cubic-bezier(.2,.8,.2,1)}
+  #float.icon-only{width:44px;padding:0;border-radius:50%;box-shadow:0 4px 16px #0008}
+  #float.icon-only span{max-width:0;opacity:0;transform:translateX(14px)}
+  @media (prefers-reduced-motion:reduce){
+    #float,#float svg,#lockshackle,#float span{transition:none}
+  }
 
   #panel{
     display:none;position:fixed;z-index:10000;
@@ -50,12 +64,12 @@
 <body>
 <iframe id="frame" src="/source/" allow="autoplay"></iframe>
 
-<button id="float" onclick="toggle()">
+<button id="float" onclick="toggle()" aria-label="Passcode" title="Passcode">
   <svg id="lockicon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px">
     <rect id="lockbody" x="4" y="11" width="16" height="10" rx="2"></rect>
     <path id="lockshackle" d="M8 11V7a4 4 0 0 1 8 0v4"></path>
   </svg>
-  Passcode
+  <span>Passcode</span>
 </button>
 
 <div id="panel">
@@ -76,8 +90,29 @@
 <script>
 function toggle(){
   const open = document.getElementById('panel').classList.toggle('show');
-  document.getElementById('lockshackle').setAttribute('d', open ? 'M8 11V7a4 4 0 0 1 7.6-1.8' : 'M8 11V7a4 4 0 0 1 8 0v4');
+  document.getElementById('float').classList.toggle('panel-open', open);
 }
+
+let sourceUiObserver = null;
+function syncFloatMode(){
+  const frameDocument = document.getElementById('frame').contentDocument;
+  const phone = frameDocument && frameDocument.getElementById('phone');
+  if (!phone) return;
+  document.getElementById('float').classList.toggle('icon-only', !phone.classList.contains('locked'));
+}
+
+function observeSourceUi(){
+  if (sourceUiObserver) sourceUiObserver.disconnect();
+  const frameDocument = document.getElementById('frame').contentDocument;
+  const phone = frameDocument && frameDocument.getElementById('phone');
+  if (!phone) return;
+  sourceUiObserver = new MutationObserver(syncFloatMode);
+  sourceUiObserver.observe(phone, { attributes: true, attributeFilter: ['class'] });
+  syncFloatMode();
+}
+
+document.getElementById('frame').addEventListener('load', observeSourceUi);
+observeSourceUi();
 
 // ====== reimplementasi pola passcode dari source situs ======
 const PASS_START  = Date.parse('2026-10-27T11:00:00+07:00');
