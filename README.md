@@ -2,7 +2,7 @@
 
 Companion viewer untuk situs ARG [lngshot-au-unknown.rinai.workers.dev](https://lngshot-au-unknown.rinai.workers.dev/) — menampilkan situs aslinya lewat `<iframe>` penuh layar, plus panel mengambang yang menghitung **passcode yang sedang berlaku** beserta hint-nya secara live, tanpa perlu nunggu notifikasi di situs.
 
-🔗 Demo tool: buka `index.html` atau `[lngshot.warren.my.id](https://lngshot.warren.my.id)` di browser manapun.
+🔗 Demo tool: buka `index.html` atau [lngshot.warren.my.id](https://lngshot.warren.my.id) di browser manapun.
 
 ---
 
