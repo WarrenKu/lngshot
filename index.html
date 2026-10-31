@@ -34,11 +34,7 @@
   .hint{font-size:13px;line-height:1.6;color:#bbb}
   .warn{font-size:11.5px;line-height:1.5;color:#ff9f0a;margin-top:10px}
   small{color:#888}
-  input{width:100%;padding:9px;background:#292929;
-    color:white;border:1px solid #555;border-radius:8px;margin-top:8px;box-sizing:border-box}
   button{cursor:pointer}
-  details summary{cursor:pointer;color:#aaa;margin-top:14px;font-size:12px}
-  #panel button#applyvid{margin-top:8px;width:100%;padding:8px;background:#0a84ff;color:#fff;border:0;border-radius:8px;font-size:13px}
 
   #footer{
     position:fixed;left:0;right:0;bottom:0;z-index:9998;
@@ -52,7 +48,7 @@
 </style>
 </head>
 <body>
-<iframe id="frame" src="https://lngshot-au-unknown.rinai.workers.dev/" allow="autoplay" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock"></iframe>
+<iframe id="frame" src="/source/" allow="autoplay"></iframe>
 
 <button id="float" onclick="toggle()">
   <svg id="lockicon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px">
@@ -71,11 +67,6 @@
   <div class="warn" id="warn"></div>
   <p style="text-align:center;margin:10px 0 2px;font-size:11px;color:#8e8e93"><a href="https://www.warren.my.id" target="_blank" rel="noopener" style="color:#8e8e93;text-decoration:none">warren.my.id</a> | <a href="https://github.com/warrenku/lngshot" target="_blank" rel="noopener" style="color:#8e8e93;text-decoration:none">source</a></p>
 
-  <details>
-    <summary>Visitor ID</summary>
-    <input id="vid">
-    <button id="applyvid" onclick="setVid()">Terapkan ID</button>
-  </details>
 </div>
 
 
@@ -121,15 +112,46 @@ const PASS_C0_END = PASS_START2 + (PASS_N - PASS_N0) * PASS_STEP;
 const PASS_STEP2 = 2 * 60 * 60 * 1000;
 const PASS_CYCLE = PASS_N * PASS_STEP2;
 
-let VID = (() => {
-  let v = null;
-  try { v = +localStorage.getItem('vid_viewer') } catch (e) {}
-  if (!v) {
-    v = (crypto.getRandomValues ? crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 4294967295)) || 1;
-    try { localStorage.setItem('vid_viewer', v) } catch (e) {}
+let sourceVid = (() => {
+  try {
+    const value = localStorage.getItem('vid_source');
+    if (!value || !/^[1-9]\d{0,9}$/.test(value)) return null;
+    const vid = Number(value);
+    return vid <= 0xFFFFFFFF ? vid : null;
+  } catch (e) {
+    return null;
   }
-  return v >>> 0;
 })();
+let VID = sourceVid || 1;
+let sourceFrameError = '';
+
+function readSourcePass() {
+  try {
+    const sourceWindow = document.getElementById('frame').contentWindow;
+    if (typeof sourceWindow.curPass !== 'function') {
+      sourceFrameError = 'Fungsi passcode situs sumber belum tersedia.';
+      return null;
+    }
+
+    const pass = sourceWindow.curPass();
+    const vidValue = sourceWindow.localStorage.getItem('vid');
+    const vid = Number(vidValue);
+    if (!pass || typeof pass.code !== 'string' || !/^\d{4}$/.test(pass.code) ||
+        typeof pass.hint !== 'string' || !vidValue ||
+        !/^[1-9]\d{0,9}$/.test(vidValue) || vid > 0xFFFFFFFF) {
+      sourceFrameError = 'Halaman sumber memberi data passcode atau VID dengan format tidak valid.';
+      return null;
+    }
+
+    sourceVid = vid;
+    sourceFrameError = '';
+    try { localStorage.setItem('vid_source', String(vid)) } catch (e) {}
+    return { ...pass, vid };
+  } catch (error) {
+    sourceFrameError = 'Belum bisa membaca halaman sumber: ' + error.message;
+    return null;
+  }
+}
 
 function rng(a) {
   return function () {
@@ -180,12 +202,14 @@ function curPass() {
   } catch (e) {}
 })();
 
-async function fetchLive() {
+async function fetchLive(vid) {
+  if (!vid) return null;
+  const requestedVid = vid;
   try {
-    const r = await fetch('/api/passcode?vid=' + VID, { cache: 'no-store' });
+    const r = await fetch('/api/passcode?vid=' + requestedVid, { cache: 'no-store' });
     if (!r.ok) return null;
     const d = await r.json();
-    return d.error ? null : d;
+    return !d.error && d.vid === requestedVid && sourceVid === requestedVid ? d : null;
   } catch (e) {
     return null;
   }
@@ -197,37 +221,33 @@ async function render() {
     document.getElementById('code').innerHTML = '<div class="spin"></div>';
     document.getElementById('hint').textContent = 'Mencari passcode terbaru...';
   }
-  const live = await fetchLive();
+  const sourcePass = readSourcePass();
+  const live = sourcePass ? null : await fetchLive(sourceVid);
   firstLoad = false;
-  const { code, hint, phase } = live || curPass();
+  const result = sourcePass || live || curPass();
+  const { code, hint } = result;
+  const phase = result.phase || curPass().phase;
 
   document.getElementById('code').textContent = code.split('').join(' ');
-  document.getElementById('hint').innerHTML = hint;
+  const hintElement = document.getElementById('hint');
+  hintElement.innerHTML = hint;
   document.getElementById('clock').textContent = new Date().toLocaleTimeString('id-ID')
-    + ' · fase ' + phase + ' · VID ' + VID
-    + (live ? (live.stale ? ' · cache' : ' · live') : ' · lokal');
-  const vidInput = document.getElementById('vid');
-  if (document.activeElement !== vidInput) vidInput.value = VID;
-
-  if (!live) {
-    document.getElementById('warn').textContent = 'Mode lokal (API /api/passcode tidak terjangkau) — jadwal dihitung dari konstanta fallback dan mungkin tidak sinkron dengan situs asli. Deploy lewat Vercel supaya mode live aktif.';
+    + (sourcePass
+      ? ' · tersinkron · VID ' + sourcePass.vid
+      : ' · fase ' + phase + ' · ' + (live ? 'VID ' + live.vid + (live.stale ? ' · cache' : ' · API') : 'lokal'));
+  if (sourcePass) {
+    document.getElementById('warn').textContent = 'Kode dan hint dibaca langsung dari curPass() situs sumber pada perangkat ini.';
+  } else if (sourceFrameError) {
+    document.getElementById('warn').textContent = sourceFrameError + (sourceVid ? ' Memakai API sebagai fallback.' : ' Pastikan source proxy aktif dan muat ulang halaman.');
+  } else if (!live) {
+    document.getElementById('warn').textContent = 'API tidak terjangkau; memakai perhitungan lokal yang mungkin tidak sinkron.';
   } else if (live.stale) {
     document.getElementById('warn').textContent = 'Situs sumber sedang tidak bisa diperbarui. API memakai data terakhir yang berhasil diambil pada ' + new Date(live.source_checked).toLocaleString('id-ID') + '.';
   } else {
     document.getElementById('warn').textContent = phase === 3
-      ? 'Live dari server, tapi urutan fase-acak tetap tergantung VID. Kalau tahu VID asli situsnya, masukkan di kolom "Visitor ID" supaya hasilnya cocok.'
+      ? 'Kode dihitung oleh API menggunakan VID situs sumber yang dimasukkan.'
       : '';
   }
-}
-
-function setVid(){
-  const inp = document.getElementById('vid');
-  const v = (+inp.value) >>> 0;
-  if(!v){ inp.placeholder='VID tidak valid, coba lagi'; return; }
-  VID = v;
-  try{ localStorage.setItem('vid_viewer', v) }catch(e){}
-  ORD = [Array.from({ length: PASS_N }, (_, i) => i)];
-  render();
 }
 
 render();
