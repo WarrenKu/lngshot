@@ -5,18 +5,24 @@
 
 const SOURCE_URL = 'https://lngshot-au-unknown.rinai.workers.dev/';
 const CACHE_MS = 5 * 60 * 1000; // cache source 5 menit biar nggak fetch tiap request
+const RETRY_MS = 30 * 1000;
 let cache = null; // { data, fetchedAt }
+let lastFetchAttemptAt = 0;
 
 function extract(html) {
   const num = (name) => {
-    const m = html.match(new RegExp(name + '\\s*=\\s*(\\d+)'));
+    const m = html.match(new RegExp('\\bconst\\s+' + name + '\\s*=\\s*(\\d+(?:\\s*\\*\\s*\\d+)*)\\s*;'));
     if (!m) throw new Error('const tidak ditemukan: ' + name);
-    return +m[1];
+    const value = m[1].split('*').reduce((result, part) => result * Number(part.trim()), 1);
+    if (!Number.isSafeInteger(value)) throw new Error('nilai const tidak valid: ' + name);
+    return value;
   };
   const dateVal = (name) => {
     const m = html.match(new RegExp(name + "\\s*=\\s*Date\\.parse\\('([^']+)'\\)"));
     if (!m) throw new Error('const tidak ditemukan: ' + name);
-    return Date.parse(m[1]);
+    const value = Date.parse(m[1]);
+    if (!Number.isFinite(value)) throw new Error('tanggal const tidak valid: ' + name);
+    return value;
   };
   const PASS_START = dateVal('PASS_START');
   const PASS_STEP0 = num('PASS_STEP0');
@@ -29,6 +35,10 @@ function extract(html) {
   if (!arrMatch) throw new Error('const tidak ditemukan: PASSES');
   // array literal berisi string saja (hint + kode) — dievaluasi sebagai literal JS
   const PASSES = new Function('return ' + arrMatch[1])();
+  if (!Array.isArray(PASSES) || PASSES.length === 0 ||
+      PASSES.some((row) => !Array.isArray(row) || typeof row[0] !== 'string' || typeof row[1] !== 'string')) {
+    throw new Error('format const PASSES tidak valid');
+  }
 
   return { PASS_START, PASS_STEP0, PASS_START2, PASS_STEP, SHUFFLE_SALT, PASS_STEP2, PASSES };
 }
@@ -82,16 +92,34 @@ function computePass(c, vid, now) {
 
 export default async function handler(req, res) {
   try {
-    if (!cache || Date.now() - cache.fetchedAt > CACHE_MS) {
-      const r = await fetch(SOURCE_URL, { cache: 'no-store' });
-      const html = await r.text();
-      cache = { data: extract(html), fetchedAt: Date.now() };
+    if (req.method && req.method !== 'GET') {
+      res.setHeader('Allow', 'GET');
+      res.status(405).json({ error: 'method tidak didukung' });
+      return;
     }
-    const vid = (+req.query.vid) >>> 0 || 1;
+
+    if ((!cache || Date.now() - cache.fetchedAt > CACHE_MS) &&
+        Date.now() - lastFetchAttemptAt >= RETRY_MS) {
+      lastFetchAttemptAt = Date.now();
+      try {
+        const r = await fetch(SOURCE_URL, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!r.ok) throw new Error('situs sumber merespons HTTP ' + r.status);
+        const html = await r.text();
+        cache = { data: extract(html), fetchedAt: Date.now() };
+      } catch (e) {
+        if (!cache) throw e;
+      }
+    }
+    if (!cache) throw new Error('belum ada data valid dari situs sumber');
+    const vid = (+(req.query && req.query.vid)) >>> 0 || 1;
     const result = computePass(cache.data, vid, Date.now());
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json({ ...result, live: true, source_checked: cache.fetchedAt });
+    const stale = Date.now() - cache.fetchedAt > CACHE_MS;
+    res.status(200).json({ ...result, live: true, stale, source_checked: cache.fetchedAt });
   } catch (e) {
-    res.status(500).json({ error: String((e && e.message) || e) });
+    res.status(502).json({ error: String((e && e.message) || e) });
   }
 }
