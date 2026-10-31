@@ -28,7 +28,9 @@
   #panel.show{display:block}
   #close{float:right;background:none;color:white;border:0;font-size:22px;cursor:pointer}
   .code{font-size:36px;font-weight:bold;letter-spacing:8px;
-    text-align:center;margin:22px 0}
+    text-align:center;margin:22px 0;min-height:44px;display:flex;align-items:center;justify-content:center}
+  .spin{width:26px;height:26px;border:3px solid #444;border-top-color:#0a84ff;border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
   .hint{font-size:13px;line-height:1.6;color:#bbb}
   .warn{font-size:11.5px;line-height:1.5;color:#ff9f0a;margin-top:10px}
   small{color:#888}
@@ -67,14 +69,13 @@
   <div class="hint" id="hint">Memuat informasi...</div>
   <p><small id="clock"></small></p>
   <div class="warn" id="warn"></div>
+  <p style="text-align:center;margin:10px 0 2px;font-size:11px;color:#8e8e93"><a href="https://www.warren.my.id" target="_blank" rel="noopener" style="color:#8e8e93;text-decoration:none">warren.my.id</a> | <a href="https://github.com/warrenku/lngshot" target="_blank" rel="noopener" style="color:#8e8e93;text-decoration:none">source</a></p>
 
   <details>
     <summary>Visitor ID</summary>
     <input id="vid">
     <button id="applyvid" onclick="setVid()">Terapkan ID</button>
   </details>
-  
-  <p style="text-align:center;margin:10px 0 2px;font-size:11px;color:#8e8e93"><a href="https://www.warren.my.id" target="_blank" rel="noopener" style="color:#8e8e93;text-decoration:none">warren.my.id</a> | <a href="https://github.com/warrenku/lngshot" target="_blank" rel="noopener" style="color:#8e8e93;text-decoration:none">source</a></p>
 </div>
 
 
@@ -179,16 +180,42 @@ function curPass() {
   } catch (e) {}
 })();
 
-function render() {
-  const { code, hint, phase } = curPass();
+async function fetchLive() {
+  try {
+    const r = await fetch('/api/passcode?vid=' + VID, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.error ? null : d;
+  } catch (e) {
+    return null;
+  }
+}
+
+let firstLoad = true;
+async function render() {
+  if (firstLoad) {
+    document.getElementById('code').innerHTML = '<div class="spin"></div>';
+    document.getElementById('hint').textContent = 'Mencari passcode terbaru...';
+  }
+  const live = await fetchLive();
+  firstLoad = false;
+  const { code, hint, phase } = live || curPass();
+
   document.getElementById('code').textContent = code.split('').join(' ');
   document.getElementById('hint').innerHTML = hint;
-  document.getElementById('clock').textContent = new Date().toLocaleTimeString('id-ID') + ' · fase ' + phase + ' · VID ' + VID;
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('id-ID')
+    + ' · fase ' + phase + ' · VID ' + VID
+    + (live ? ' · live' : ' · lokal');
   const vidInput = document.getElementById('vid');
   if (document.activeElement !== vidInput) vidInput.value = VID;
-  document.getElementById('warn').textContent = phase === 3
-    ? 'Setelah siklus acak dimulai, urutan kode bisa beda per perangkat. Kalau tahu VID asli situsnya, masukkan di kolom "Visitor ID" di bawah supaya hasilnya cocok.'
-    : '';
+
+  if (!live) {
+    document.getElementById('warn').textContent = 'Mode lokal (API /api/passcode tidak terjangkau) — perhitungan pakai konstanta lama, bisa saja sudah tidak sinkron dengan situs asli. Deploy lewat Vercel supaya mode live aktif.';
+  } else {
+    document.getElementById('warn').textContent = phase === 3
+      ? 'Live dari server, tapi urutan fase-acak tetap tergantung VID. Kalau tahu VID asli situsnya, masukkan di kolom "Visitor ID" supaya hasilnya cocok.'
+      : '';
+  }
 }
 
 function setVid(){
@@ -205,4 +232,4 @@ render();
 setInterval(render, 5000);
 </script>
 </body>
-  </html>
+</html>
