@@ -98,6 +98,13 @@ export default async function handler(req, res) {
       return;
     }
 
+    const vidParam = req.query && req.query.vid;
+    if (typeof vidParam !== 'string' || !/^[1-9]\d{0,9}$/.test(vidParam) ||
+        Number(vidParam) > 0xFFFFFFFF) {
+      res.status(400).json({ error: 'VID situs sumber wajib berupa integer 32-bit positif' });
+      return;
+    }
+
     if ((!cache || Date.now() - cache.fetchedAt > CACHE_MS) &&
         Date.now() - lastFetchAttemptAt >= RETRY_MS) {
       lastFetchAttemptAt = Date.now();
@@ -114,11 +121,11 @@ export default async function handler(req, res) {
       }
     }
     if (!cache) throw new Error('belum ada data valid dari situs sumber');
-    const vid = (+(req.query && req.query.vid)) >>> 0 || 1;
+    const vid = Number(vidParam);
     const result = computePass(cache.data, vid, Date.now());
     res.setHeader('Cache-Control', 'no-store');
     const stale = Date.now() - cache.fetchedAt > CACHE_MS;
-    res.status(200).json({ ...result, live: true, stale, source_checked: cache.fetchedAt });
+    res.status(200).json({ ...result, vid, live: true, stale, source_checked: cache.fetchedAt });
   } catch (e) {
     res.status(502).json({ error: String((e && e.message) || e) });
   }
