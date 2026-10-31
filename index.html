@@ -20,7 +20,7 @@
       border-radius .48s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease;
   }
   #float:active{transform:scale(.96)}
-  #float svg{flex:none;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  #float svg{flex:none;margin:0!important;vertical-align:initial!important;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
   #lockshackle{transform-origin:8px 11px;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
   #float.panel-open #lockshackle{transform:rotate(-35deg) translateY(-1px)}
   #float span{display:inline-block;max-width:72px;overflow:hidden;text-overflow:clip;
@@ -89,8 +89,11 @@
 
 <script>
 function toggle(){
-  const open = document.getElementById('panel').classList.toggle('show');
-  document.getElementById('float').classList.toggle('panel-open', open);
+  const panel = document.getElementById('panel');
+  const button = document.getElementById('float');
+  const open = panel.classList.toggle('show');
+  button.classList.toggle('panel-open', open);
+  syncFloatMode();
 }
 
 let sourceUiObserver = null;
@@ -98,7 +101,11 @@ function syncFloatMode(){
   const frameDocument = document.getElementById('frame').contentDocument;
   const phone = frameDocument && frameDocument.getElementById('phone');
   if (!phone) return;
-  document.getElementById('float').classList.toggle('icon-only', !phone.classList.contains('locked'));
+  const panelOpen = document.getElementById('panel').classList.contains('show');
+  document.getElementById('float').classList.toggle(
+    'icon-only',
+    !phone.classList.contains('locked') && !panelOpen
+  );
 }
 
 function observeSourceUi(){
