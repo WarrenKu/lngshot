@@ -1,8 +1,8 @@
 # LNGSHOT Viewer
 
-Companion viewer untuk situs ARG [lngshot-au-unknown.rinai.workers.dev](https://lngshot-au-unknown.rinai.workers.dev/) — menampilkan situs aslinya lewat `<iframe>` penuh layar, plus panel mengambang yang menghitung **passcode yang sedang berlaku** beserta hint-nya secara live, tanpa perlu nunggu notifikasi di situs.
+Viewer untuk situs ARG [lngshot-au-unknown.rinai.workers.dev](https://lngshot-au-unknown.rinai.workers.dev/). Situs sumber dimuat melalui rewrite Vercel agar panel dapat membaca hasil `curPass()` aktual di sesi browser yang sama.
 
-🔗 Demo tool: buka `index.html` atau [lngshot.warren.my.id](https://lngshot.warren.my.id) di browser manapun.
+🔗 Demo tool: buka [lngshot.warren.my.id](https://lngshot.warren.my.id) di browser manapun.
 
 ---
 
@@ -13,21 +13,27 @@ Companion viewer untuk situs ARG [lngshot-au-unknown.rinai.workers.dev](https://
 - Panel "LIVE PASSCODE" yang menampilkan:
   - Kode 4 digit yang sedang berlaku saat ini.
   - Teks hint/pertanyaan yang menyertainya.
-  - Jam lokal, fase algoritma yang sedang aktif, dan Visitor ID (VID) yang dipakai untuk menghitung.
+  - Status sinkronisasi dan VID sesi sumber.
   - Auto-refresh tiap 5 detik.
-- Kolom **Visitor ID** yang bisa diedit manual, untuk kasus di mana kamu tahu VID asli yang dipakai situs sumbernya (lihat bagian [Keterbatasan](#keterbatasan-teknis) di bawah).
-- Coba sinkronisasi jam ke server situs asli lewat header `Date` (diam-diam gagal kalau diblokir CORS, lalu fallback ke jam lokal perangkat).
 
 ---
 
 ## Cara pakai
 
 1. Download/clone repo ini.
-2. Buka `index.html` langsung di browser (double-click, atau drag ke tab browser).
-3. Situs asli akan tampil penuh layar di dalam iframe — interaksi normal (swipe, klik, dsb.) tetap berjalan seperti biasa di situs aslinya.
+2. Deploy repository ke Vercel agar rewrite `/source/` dan fungsi API aktif.
+3. Situs sumber akan tampil penuh layar di dalam iframe — interaksi normal (swipe, klik, dsb.) tetap berjalan seperti biasa.
 4. Klik tombol gembok di pojok kanan bawah untuk melihat kode & hint yang sedang berlaku.
 
-Tidak perlu server/hosting — ini murni file statis (HTML + CSS + JS inline, tanpa dependency eksternal).
+Deploy ke Vercel agar rewrite `/source/` memuat situs sumber beserta aset relatifnya pada origin viewer. Dengan begitu viewer dapat membaca `curPass()` dan `localStorage.vid` langsung dari frame. `api/passcode.js` menjadi fallback jika pembacaan langsung gagal dan memiliki VID sumber yang tersimpan sebelumnya.
+
+> **Catatan keamanan:** proxy ini menjalankan aplikasi sumber pada origin viewer. Script aplikasi sumber akan memiliki akses same-origin ke halaman dan storage viewer. Gunakan hanya jika kamu mengontrol dan mempercayai source yang diproxy.
+
+### Sinkronisasi passcode
+
+Setelah deploy dengan `vercel.json`, halaman sumber dimuat melalui `/source/` dan aset seperti `style.css` atau `image/...` diteruskan ke situs sumber lewat rewrite. `index.html` membaca `curPass()` dan VID frame otomatis setiap 5 detik. Tidak perlu menyalin VID manual pada penggunaan normal.
+
+Jika pembacaan langsung gagal, viewer mencoba API dengan VID terakhir yang berhasil dibaca. Jika tidak ada VID tersimpan, panel menampilkan peringatan dan tidak mengklaim hasilnya tersinkron.
 
 ---
 
@@ -37,9 +43,9 @@ Situs sumber mengganti passcode berdasarkan waktu, dalam 3 fase:
 
 | Fase | Rentang waktu | Interval ganti kode | Urutan kode |
 |---|---|---|---|
-| 1 | Sebelum `2026-10-27 13:30 WIB` | ±8,5 jam (`PASS_STEP0`) | Sesuai urutan asli di array `PASSES` |
-| 2 | `2026-10-27 13:30 WIB` → ±`2026-11-04 11:24 WIB` | ±12,7 jam (`PASS_STEP`) | Sesuai urutan asli |
-| 3 | Setelah itu, siklus berulang | ±72,4 jam per kode (`PASS_STEP2`) | **Diacak** per siklus, seed-nya dari `VID` (lihat di bawah) |
+| 1 | Sebelum `2026-10-27 13:30 WIB` | 30 menit (`PASS_STEP0`) | Sesuai urutan asli di array `PASSES` |
+| 2 | `2026-10-27 13:30 WIB` → sekitar `2026-10-27 21:00 WIB` | 45 menit (`PASS_STEP`) | Sesuai urutan asli |
+| 3 | Setelah itu, siklus berulang | 2 jam per kode (`PASS_STEP2`) | **Diacak** per siklus, seed-nya dari `VID` (lihat di bawah) |
 
 Fase 3 pakai PRNG `mulberry32`-style (`rng(seed)`), dengan seed = `(index_siklus XOR VID) * 2654435761 XOR SHUFFLE_SALT`. Hasil shuffle-nya dipastikan elemen pertama siklus baru tidak sama dengan elemen terakhir siklus sebelumnya (biar nggak ada kode yang nongol dua kali berturut-turut).
 
@@ -49,11 +55,11 @@ Fase 3 pakai PRNG `mulberry32`-style (`rng(seed)`), dengan seed = `(index_siklus
 
 ## Keterbatasan teknis
 
-Browser menerapkan **same-origin policy**: halaman ini tidak bisa membaca `localStorage` milik `lngshot-au-unknown.rinai.workers.dev` dari dalam iframe, dan tidak bisa mensimulasikan interaksi (klik/swipe) ke dalam iframe cross-origin itu. Ini bukan bug, melainkan proteksi keamanan browser yang memang disengaja — kalau ini bisa ditembus, berarti situs mana pun bisa mengintip/mengontrol situs lain tanpa izin.
+Tanpa rewrite `/source/`, browser menerapkan **same-origin policy** dan viewer tidak dapat membaca `localStorage` atau memanggil fungsi JavaScript iframe lintas domain secara langsung.
 
 Konsekuensinya:
-- **Fase 1 & 2**: kode yang dihitung di tool ini dijamin sama untuk semua orang (urutannya tidak diacak), jadi akurat 100%.
-- **Fase 3**: urutan kode tergantung `VID`, yang di-generate terpisah di origin viewer ini vs. origin situs asli. Keduanya kemungkinan besar **beda angka**, sehingga kode yang tertera di sini bisa saja tidak cocok dengan yang diminta situs asli. Gunakan kolom **Visitor ID** untuk menimpa nilainya secara manual kalau kamu tahu VID yang sebenarnya dipakai situs sumber (misalnya lewat akses langsung ke kode sumber situs tersebut).
+- Dengan rewrite aktif, kode ditampilkan langsung dari `curPass()` iframe.
+- Tanpa rewrite, API membutuhkan VID sumber dan hasil bisa tidak cocok jika VID tidak dimasukkan atau keliru.
 
 ---
 
@@ -61,7 +67,10 @@ Konsekuensinya:
 
 ```
 .
-├── index.html   # semua UI + logic (HTML, CSS, JS) dalam satu file, tanpa dependency
+├── index.html       # UI + perhitungan lokal (fallback)
+├── vercel.json      # rewrite source dan aset ke origin asal
+├── api/
+│   └── passcode.js  # fallback serverless berdasarkan VID sumber
 └── README.md
 ```
 
