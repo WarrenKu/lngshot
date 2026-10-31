@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/source",
+      "destination": "https://lngshot-au-unknown.rinai.workers.dev/"
+    },
+    {
+      "source": "/source/",
+      "destination": "https://lngshot-au-unknown.rinai.workers.dev/"
+    },
+    {
+      "source": "/source/:path*",
+      "destination": "https://lngshot-au-unknown.rinai.workers.dev/:path*"
+    }
+  ]
+}
