@@ -28,18 +28,25 @@
   #float.icon-only{width:44px;padding:0;border-radius:50%;box-shadow:0 4px 16px #0008}
   #float.icon-only span{max-width:0;opacity:0;transform:translateX(14px)}
   @media (prefers-reduced-motion:reduce){
-    #float,#float svg,#lockshackle,#float span{transition:none}
+    #float,#float svg,#lockshackle,#float span,#panel{transition:none}
   }
 
   #panel{
-    display:none;position:fixed;z-index:10000;
+    position:fixed;z-index:10000;
     right:14px;bottom:80px;width:min(330px,calc(100% - 28px));
     background:#191919;border:1px solid #444;
     border-radius:17px;padding:18px;
     box-shadow:0 10px 40px #000b;
     color:#fff;
+    visibility:hidden;opacity:0;pointer-events:none;
+    transform:translateY(10px) scale(.98);transform-origin:bottom right;
+    transition:opacity .22s ease,transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s;
   }
-  #panel.show{display:block}
+  #panel.show{
+    visibility:visible;opacity:1;pointer-events:auto;
+    transform:translateY(0) scale(1);
+    transition:opacity .22s ease,transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s;
+  }
   #close{float:right;background:none;color:white;border:0;font-size:22px;cursor:pointer}
   .code{font-size:36px;font-weight:bold;letter-spacing:8px;
     text-align:center;margin:22px 0;min-height:44px;display:flex;align-items:center;justify-content:center}
