@@ -1,6 +1,6 @@
 # LNGSHOT 
 
- situs ARG [lngshot-au-unknown.rinai.workers.dev](https://lngshot-au-unknown.rinai.workers.dev/). Situs sumber dimuat melalui rewrite Vercel agar panel dapat membaca hasil `curPass()` aktual di sesi browser yang sama.
+ situs ARG [lngshot-au-unknown.rinai.workers.dev](https://lngshot-au-unknown.rinai.workers.dev/). Situs sumber dimuat melalui rewrite Vercel agar panel dapat membaca hasil `?` aktual di sesi browser yang sama.
 
 🔗 Demo tool: buka [lngshot.warren.my.id](https://lngshot.warren.my.id) di browser manapun.
 
