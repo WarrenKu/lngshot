@@ -285,7 +285,7 @@ async function render() {
       ? ' · tersinkron · VID ' + sourcePass.vid
       : ' · fase ' + phase + ' · ' + (live ? 'VID ' + live.vid + (live.stale ? ' · cache' : ' · API') : 'lokal'));
   if (sourcePass) {
-    document.getElementById('warn').textContent = 'Kode dan hint dibaca langsung dari curPass() situs sumber pada perangkat ini.';
+    document.getElementById('warn').textContent = 'Kode dan hint dibaca langsung dari source situs sumber pada perangkat ini.';
   } else if (sourceFrameError) {
     document.getElementById('warn').textContent = sourceFrameError + (sourceVid ? ' Memakai API sebagai fallback.' : ' Pastikan source proxy aktif dan muat ulang halaman.');
   } else if (!live) {
